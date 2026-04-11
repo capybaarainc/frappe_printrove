@@ -11,7 +11,7 @@
   "client_secret",
   "supplier_section",
   "supplier",
-  "shipping_item"
+  "shipping_account"
  ],
  "fields": [
   {
@@ -56,11 +56,11 @@
    "description": "Supplier corresponding to Printrove."
   },
   {
-   "fieldname": "shipping_item",
+   "fieldname": "shipping_account",
    "fieldtype": "Link",
-   "label": "Shipping Item",
-   "options": "Item",
-   "description": "Item to use for shipping charges in Purchase Order."
+   "label": "Shipping Account",
+   "options": "Account",
+   "description": "Account Head to use for shipping charges in Purchase Order."
   }
  ],
  "issingle": 1,

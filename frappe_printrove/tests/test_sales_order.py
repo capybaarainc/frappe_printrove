@@ -28,6 +28,20 @@ class TestSalesOrder(unittest.TestCase):
         else:
             frappe.db.set_value("Item", "PR-SUB-1", "printrove_id", "12345")
 
+        if not frappe.db.exists("Item", "NON-PR-ITEM"):
+            item_dict2 = {
+                "doctype": "Item",
+                "item_code": "NON-PR-ITEM",
+                "item_name": "Test Non-Printrove Product",
+                "item_group": "All Item Groups",
+                "is_stock_item": 1
+            }
+            if frappe.db.has_column("Item", "gst_hsn_code"):
+                item_dict2["gst_hsn_code"] = "999900"
+            frappe.get_doc(item_dict2).insert(ignore_permissions=True)
+        else:
+            frappe.db.set_value("Item", "NON-PR-ITEM", "printrove_id", None)
+
         if not frappe.db.exists("Supplier", "Printrove"):
             frappe.get_doc({
                 "doctype": "Supplier",
@@ -75,6 +89,7 @@ class TestSalesOrder(unittest.TestCase):
         settings = frappe.get_doc("Printrove Settings")
         settings.enable_printrove = 1
         settings.supplier = "Printrove"
+        settings.shipping_account = "Freight and Forwarding Charges - _TC"
         settings.save(ignore_permissions=True)
         frappe.db.commit()
 
@@ -94,12 +109,28 @@ class TestSalesOrder(unittest.TestCase):
             "rate": 500,
             "warehouse": "Test Warehouse - _TC"
         })
+        so.append("items", {
+            "item_code": "NON-PR-ITEM",
+            "qty": 1,
+            "rate": 300,
+            "warehouse": "Test Warehouse - _TC"
+        })
         so.insert(ignore_permissions=True, ignore_mandatory=True)
         so.docstatus = 1
         
         on_submit(so)
 
-        pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
+        pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent", "item_code", "qty", "rate"])
+        
+        # Should create a PO with exactly one item (the PR-SUB-1)
         self.assertTrue(len(pos) > 0)
+        self.assertEqual(len(pos), 1)
+        self.assertEqual(pos[0].item_code, "PR-SUB-1")
+        
+        # Check rates were updated via Printrove API Cost spreading
+        # Mock returned 500 order_cost and 50 shipping_cost.
+        # Item cost pool = 450. Qty = 2. Rate per item should be 225.
+        self.assertEqual(pos[0].rate, 225.0)
+
         po = frappe.get_doc("Purchase Order", pos[0].parent)
         self.assertEqual(po.printrove_order_id, "EXT-ORDER-123")
