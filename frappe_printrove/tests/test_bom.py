@@ -9,8 +9,8 @@ class TestBOM(unittest.TestCase):
         super().setUpClass()
         settings = frappe.get_doc("Printrove Settings")
         settings.enable_printrove = 1
-        settings.client_id = "aryan.singh@capybaara.com"
-        settings.client_secret = "Wrinkly4-Editor-Molasses"
+        settings.client_id = "test@example.com"
+        settings.client_secret = "test_password"
         settings.supplier = "Printrove Products Private Limited"
         settings.save(ignore_permissions=True)
         frappe.db.commit()
