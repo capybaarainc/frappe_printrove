@@ -42,6 +42,21 @@ class TestSalesOrder(unittest.TestCase):
         else:
             frappe.db.set_value("Item", "NON-PR-ITEM", "printrove_id", None)
 
+        if not frappe.db.exists("Item", "PR-STOCKED"):
+            item_dict3 = {
+                "doctype": "Item",
+                "item_code": "PR-STOCKED",
+                "item_name": "Test Stocked Product",
+                "item_group": "All Item Groups",
+                "is_stock_item": 1,
+                "printrove_id": "9999"
+            }
+            if frappe.db.has_column("Item", "gst_hsn_code"):
+                item_dict3["gst_hsn_code"] = "999900"
+            frappe.get_doc(item_dict3).insert(ignore_permissions=True)
+        else:
+            frappe.db.set_value("Item", "PR-STOCKED", "printrove_id", "9999")
+
         if not frappe.db.exists("Supplier", "Printrove"):
             frappe.get_doc({
                 "doctype": "Supplier",
@@ -84,7 +99,7 @@ class TestSalesOrder(unittest.TestCase):
 
         frappe.db.commit()
 
-    @patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveAPI")
+    @patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient")
     def test_on_submit(self, mock_api_class):
         settings = frappe.get_doc("Printrove Settings")
         settings.enable_printrove = 1
@@ -107,6 +122,8 @@ class TestSalesOrder(unittest.TestCase):
             "item_code": "PR-SUB-1",
             "qty": 2,
             "rate": 500,
+            "delivered_by_supplier": 1,
+            "supplier": "Printrove",
             "warehouse": "Test Warehouse - _TC"
         })
         so.append("items", {
@@ -115,10 +132,38 @@ class TestSalesOrder(unittest.TestCase):
             "rate": 300,
             "warehouse": "Test Warehouse - _TC"
         })
+        # Add another Printrove item but do NOT set delivered_by_supplier to test that condition
+        so.append("items", {
+            "item_code": "PR-SUB-1",
+            "qty": 5,
+            "rate": 500,
+            "delivered_by_supplier": 0,
+            "warehouse": "Test Warehouse - _TC"
+        })
+        so.append("items", {
+            "item_code": "PR-STOCKED",
+            "qty": 3,
+            "rate": 500,
+            "delivered_by_supplier": 1,
+            "supplier": "Printrove",
+            "warehouse": "Test Warehouse - _TC"
+        })
         so.insert(ignore_permissions=True, ignore_mandatory=True)
         so.docstatus = 1
         
-        on_submit(so)
+        original_sql = frappe.db.sql
+        def mock_sql(query, *args, **kwargs):
+            if "select sum(actual_qty) from `tabBin` where item_code" in query:
+                item_code = args[0] if args else None
+                if isinstance(item_code, tuple):
+                    item_code = item_code[0]
+                if item_code == "PR-STOCKED":
+                    return ((100,),)
+                return ((0,),)
+            return original_sql(query, *args, **kwargs)
+
+        with patch.object(frappe.db, "sql", side_effect=mock_sql):
+            on_submit(so)
 
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent", "item_code", "qty", "rate"])
         

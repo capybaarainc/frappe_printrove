@@ -11,12 +11,18 @@ def on_submit(doc, method=None):
     total_weight = 0
 
     for item in doc.items:
+        if not item.delivered_by_supplier:
+            continue
+
         p_id = frappe.db.get_value("Item", item.item_code, "printrove_id")
         if p_id:
-            printrove_items.append(item)
-            # Fetch weight if set
-            weight = frappe.db.get_value("Item", item.item_code, "weight_per_unit") or 0.2
-            total_weight += weight * item.qty
+            # Only create PO if there is zero or negative stock across all warehouses
+            actual_qty = frappe.db.sql("select sum(actual_qty) from `tabBin` where item_code=%s", item.item_code)[0][0] or 0
+            if actual_qty <= 0:
+                printrove_items.append(item)
+                # Fetch weight if set
+                weight = frappe.db.get_value("Item", item.item_code, "weight_per_unit") or 0.2
+                total_weight += weight * item.qty
 
     if not printrove_items:
         return

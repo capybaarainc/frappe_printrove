@@ -2,7 +2,7 @@ import unittest
 import frappe
 from unittest.mock import patch, MagicMock
 from frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings import (
-    PrintroveAPI
+    PrintroveClient
 )
 
 class TestPrintroveSettings(unittest.TestCase):
@@ -33,6 +33,6 @@ class TestPrintroveSettings(unittest.TestCase):
         mock_response.json.return_value = {"access_token": "test_token"}
         mock_post.return_value = mock_response
 
-        api = PrintroveAPI()
+        api = PrintroveClient()
         self.assertEqual(api.token, "test_token")
 
