@@ -116,17 +116,30 @@ def on_submit(doc, method=None):
             )
 
         if shipping_cost > 0:
-            shipping_item = frappe.db.get_single_value("Printrove Settings", "shipping_item") or "Printrove Shipping"
-            if frappe.db.exists("Item", shipping_item):
+            shipping_account = frappe.db.get_single_value("Printrove Settings", "shipping_account")
+            # Ensure the shipping account belongs to the PO's company
+            if shipping_account:
+                acct_company = frappe.db.get_value("Account", shipping_account, "company")
+                if acct_company != doc.company:
+                    shipping_account = None
+
+            if not shipping_account:
+                # Fallback to standard expense account if possible
+                expense_accounts = frappe.db.get_all("Account", filters={"account_type": ["in", ["Expense Account", "Chargeable"]], "company": doc.company}, limit=1)
+                if not expense_accounts:
+                    expense_accounts = frappe.db.get_all("Account", filters={"name": ["like", "%Freight%"], "company": doc.company}, limit=1)
+                shipping_account = expense_accounts[0].name if expense_accounts else None
+
+            if shipping_account:
                 po.append(
-                    "items",
+                    "taxes",
                     {
-                        "item_code": shipping_item,
-                        "qty": 1,
-                        "rate": shipping_cost,
-                        "schedule_date": doc.delivery_date,
-                        "warehouse": frappe.get_cached_value("Company", doc.company, "default_warehouse"),
-                    },
+                        "charge_type": "Actual",
+                        "account_head": shipping_account,
+                        "tax_amount": shipping_cost,
+                        "description": "Shipping and Delivery Expenses",
+                        "add_deduct_tax": "Add"
+                    }
                 )
 
         if pr_order_id:
