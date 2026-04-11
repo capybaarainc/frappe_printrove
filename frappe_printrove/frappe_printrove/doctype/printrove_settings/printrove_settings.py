@@ -158,9 +158,9 @@ class PrintroveClient:
                 
         frappe.throw(_("Printrove API Request Failed after retries."))
 
-    def create_design(self, image_url, name):
-        payload = {"url": image_url, "name": name}
-        return self._request("POST", "/api/external/designs/url", json_data=payload)
+    def create_design(self, file_content, name):
+        payload = {"file": file_content, "name": name}
+        return self._request("POST", "/api/external/designs", json_data=payload)
 
     def create_product(self, payload):
         return self._request("POST", "/api/external/products", json_data=payload)

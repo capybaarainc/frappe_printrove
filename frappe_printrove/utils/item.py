@@ -24,7 +24,6 @@ def on_update(doc, method=None):
             filters={
                 "attached_to_doctype": "Item",
                 "attached_to_name": doc.name,
-                "is_private": 0,  # Must be public for Printrove to access it
             },
             fields=["file_url", "name"],
             order_by="creation desc",
@@ -32,13 +31,13 @@ def on_update(doc, method=None):
         )
 
         if not attached_file:
-            # Fallback to doc.image if set and public
-            if doc.image and not doc.image.startswith("/private"):
-                image_url = get_url(doc.image)
+            # Fallback to doc.image if set
+            if doc.image:
+                file_url = doc.image
             else:
                 return
         else:
-            image_url = get_url(attached_file[0].file_url)
+            file_url = attached_file[0].file_url
 
         try:
             settings = frappe.get_doc("Printrove Settings")
@@ -46,7 +45,7 @@ def on_update(doc, method=None):
                 return
                 
             payload = {
-                "image_url": image_url,
+                "file_url": file_url,
                 "name": doc.item_name or doc.item_code
             }
             

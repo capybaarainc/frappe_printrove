@@ -26,7 +26,23 @@ def process(integration_request_name):
         payload = json.loads(doc.data)
 
         if doc.request_description == "Create Design":
-            response = api.create_design(payload.get("image_url"), payload.get("name"))
+            import base64
+            from frappe.core.doctype.file.utils import find_file_by_url
+            
+            file_url = payload.get("file_url")
+            file_doc = find_file_by_url(file_url)
+            
+            if not file_doc:
+                frappe.throw(f"File not found: {file_url}")
+                
+            file_content = file_doc.get_content()
+            base64_file = base64.b64encode(file_content).decode('utf-8')
+            
+            import mimetypes
+            content_type = mimetypes.guess_type(file_url)[0] or "image/png"
+            data_uri = f"data:{content_type};base64,{base64_file}"
+
+            response = api.create_design(data_uri, payload.get("name"))
             doc.db_set("output", json.dumps(response))
             design_id = response.get("design", {}).get("id") if isinstance(response, dict) else None
             
