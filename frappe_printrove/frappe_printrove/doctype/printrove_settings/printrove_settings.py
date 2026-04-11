@@ -47,9 +47,9 @@ class PrintroveSettings(Document):
             self.supplier = supplier_name
 
     def get_api(self):
-        return PrintroveAPI(self)
+        return PrintroveClient(self)
 
-class PrintroveAPI:
+class PrintroveClient:
     def __init__(self, settings=None):
         self.settings = settings or frappe.get_single("Printrove Settings")
         if not self.settings.enable_printrove:

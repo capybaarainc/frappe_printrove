@@ -87,7 +87,7 @@ class TestBOM(unittest.TestCase):
         })
         bom.insert(ignore_permissions=True)
         
-        with patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveAPI") as MockAPI:
+        with patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient") as MockAPI:
             mock_instance = MockAPI.return_value
             mock_instance.create_product.return_value = {"product": {"id": "prod_123", "variants": [{"id": "var_123"}]}}
             

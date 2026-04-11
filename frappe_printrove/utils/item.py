@@ -2,6 +2,15 @@ import frappe
 from frappe.utils import get_url
 
 def on_update(doc, method=None):
+    # Set delivered_by_supplier for Printrove Products
+    if getattr(doc, "item_group", "") == "Products" and getattr(doc, "delivered_by_supplier", 0) == 0:
+        settings = frappe.get_single("Printrove Settings")
+        if settings.supplier:
+            for row in doc.get("supplier_items", []):
+                if row.supplier == settings.supplier:
+                    doc.db_set("delivered_by_supplier", 1)
+                    break
+
     # Print File Management
     if getattr(doc, "item_group", "") == "Print Files" and not doc.printrove_id:
         # Avoid recursive loop during save
