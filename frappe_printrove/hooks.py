@@ -141,6 +141,9 @@ doc_events = {
 	},
 	"Sales Order": {
 		"on_submit": "frappe_printrove.utils.sales_order.on_submit"
+	},
+	"File": {
+		"after_insert": "frappe_printrove.utils.file.after_insert"
 	}
 }
 

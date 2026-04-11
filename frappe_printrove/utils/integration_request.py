@@ -36,6 +36,8 @@ def process(integration_request_name):
                 frappe.throw(f"File not found: {file_url}")
                 
             file_content = file_doc.get_content()
+            if isinstance(file_content, str):
+                file_content = file_content.encode('utf-8')
             base64_file = base64.b64encode(file_content).decode('utf-8')
             
             import mimetypes

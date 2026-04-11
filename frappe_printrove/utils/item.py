@@ -18,6 +18,16 @@ def on_update(doc, method=None):
         if frappe.flags.in_printrove_sync:
             return
 
+        # Check if an integration request is already queued or processing
+        existing_req = frappe.db.exists("Integration Request", {
+            "reference_doctype": "Item",
+            "reference_docname": doc.name,
+            "request_description": "Create Design",
+            "status": ["in", ["Queued", "Processing"]]
+        })
+        if existing_req:
+            return
+
         # Look for the latest attached image file
         attached_file = frappe.get_all(
             "File",
