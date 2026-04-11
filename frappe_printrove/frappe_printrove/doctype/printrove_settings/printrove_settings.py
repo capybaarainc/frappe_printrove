@@ -49,6 +49,29 @@ class PrintroveSettings(Document):
     def get_api(self):
         return PrintroveClient(self)
 
+    def get_available_credit(self, company):
+        if not self.printrove_credit_account:
+            return 0
+
+        # 1. Get GL Balance for the account
+        gl_balance = frappe.db.sql("""
+            SELECT SUM(debit) - SUM(credit)
+            FROM `tabGL Entry`
+            WHERE account=%s AND company=%s AND is_cancelled=0
+        """, (self.printrove_credit_account, company))
+        balance = gl_balance[0][0] or 0
+
+        # 2. Get total unbilled amount from Purchase Orders linked to Printrove
+        unbilled_amount = frappe.db.sql("""
+            SELECT SUM(grand_total * (100 - per_billed) / 100)
+            FROM `tabPurchase Order`
+            WHERE supplier=%s AND company=%s AND docstatus=1 
+            AND status NOT IN ('Completed', 'Cancelled', 'Closed')
+        """, (self.supplier, company))
+        unbilled = unbilled_amount[0][0] or 0
+
+        return float(balance) - float(unbilled)
+
 class PrintroveClient:
     def __init__(self, settings=None):
         self.settings = settings or frappe.get_single("Printrove Settings")
@@ -97,7 +120,7 @@ class PrintroveClient:
             frappe.log_error(message=frappe.get_traceback(), title="Printrove Authentication Failed")
             frappe.throw(_("Failed to authenticate with Printrove API. Check logs for details."))
 
-    def _request(self, method, endpoint, params=None, json_data=None, retries=5):
+    def _request(self, method, endpoint, params=None, json_data=None, retries=10):
         import time
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         headers = {
@@ -110,27 +133,30 @@ class PrintroveClient:
             try:
                 response = requests.request(method, url, headers=headers, params=params, json=json_data)
                 
-                # Check for rate limit
-                if response.status_code == 429:
-                    wait_time = 2 ** attempt
-                    frappe.logger().warning(f"Printrove Rate Limit Hit. Retrying in {wait_time} seconds...")
+                # Check for rate limit or server errors
+                if response.status_code in (429, 500, 502, 503, 504):
+                    wait_time = 10 * (2 ** attempt)
+                    frappe.logger().warning(f"Printrove API Error {response.status_code}. Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                     continue
                     
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.HTTPError as e:
-                # If it's not a 429 or we ran out of retries, throw error
-                frappe.log_error(
-                    message=f"Request: {method} {url}\nResponse: {response.text}\nError: {str(e)}",
-                    title="Printrove API Error",
-                )
-                frappe.throw(_("Printrove API Request Failed. Check Error Log for details."))
-            except Exception:
-                frappe.log_error(message=frappe.get_traceback(), title="Printrove API Error")
-                frappe.throw(_("An error occurred while communicating with Printrove API."))
-        
-        frappe.throw(_("Printrove API Rate Limit Exceeded after retries."))
+                # If it's a client error (e.g. 422, 400, 404), do not retry unless it's a 429 which is handled above
+                if e.response.status_code not in (429, 500, 502, 503, 504):
+                    frappe.log_error(
+                        message=f"Request: {method} {url}\nResponse: {e.response.text}\nError: {str(e)}",
+                        title="Printrove API Client Error",
+                    )
+                    raise e
+            except Exception as e:
+                # Network error, retry
+                wait_time = 10 * (2 ** attempt)
+                frappe.logger().warning(f"Printrove Network Error. Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+                
+        frappe.throw(_("Printrove API Request Failed after retries."))
 
     def create_design(self, image_url, name):
         payload = {"url": image_url, "name": name}

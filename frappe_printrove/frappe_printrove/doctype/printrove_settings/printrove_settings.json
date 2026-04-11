@@ -11,7 +11,8 @@
   "client_secret",
   "supplier_section",
   "supplier",
-  "shipping_account"
+  "shipping_account",
+  "printrove_credit_account"
  ],
  "fields": [
   {
@@ -61,6 +62,13 @@
    "label": "Shipping Account",
    "options": "Account",
    "description": "Account Head to use for shipping charges in Purchase Order."
+  },
+  {
+   "fieldname": "printrove_credit_account",
+   "fieldtype": "Link",
+   "label": "Printrove Credit",
+   "options": "Account",
+   "description": "Asset account representing available Printrove wallet credits."
   }
  ],
  "issingle": 1,

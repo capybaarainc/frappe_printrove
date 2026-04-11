@@ -1,5 +1,6 @@
 import frappe
 from frappe.utils import get_url
+from frappe_printrove.utils.integration_request import create, process
 
 def on_update(doc, method=None):
     # Set delivered_by_supplier for Printrove Products
@@ -41,15 +42,21 @@ def on_update(doc, method=None):
 
         try:
             settings = frappe.get_doc("Printrove Settings")
-            api = settings.get_api()
-            response = api.create_design(image_url, doc.item_name or doc.item_code)
-
-            design_id = response.get("design", {}).get("id") if isinstance(response, dict) else None
+            if not settings.enable_printrove:
+                return
+                
+            payload = {
+                "image_url": image_url,
+                "name": doc.item_name or doc.item_code
+            }
             
-            if design_id:
-                frappe.flags.in_printrove_sync = True
-                doc.db_set("printrove_id", str(design_id))
-                frappe.flags.in_printrove_sync = False
+            req = create("Item", doc.name, "Create Design", payload)
+            
+            frappe.enqueue(
+                "frappe_printrove.utils.integration_request.process",
+                queue="long",
+                integration_request_name=req.name,
+                now=frappe.flags.in_test
+            )
         except Exception:
             frappe.log_error(message=frappe.get_traceback(), title="Printrove Design Sync Failed")
-            # We don't throw here to avoid blocking item save, but log it
