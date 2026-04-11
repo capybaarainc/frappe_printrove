@@ -250,7 +250,8 @@ doc_events = {
 # }
 
 fixtures = [
-	{"dt": "Custom Field", "filters": [["module", "in", ["Frappe Printrove"]]]}
+	{"dt": "Custom Field", "filters": [["module", "in", ["Frappe Printrove"]]]},
+	{"dt": "Property Setter", "filters": [["module", "in", ["Frappe Printrove"]]]}
 ]
 
 # Translation

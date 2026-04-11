@@ -53,8 +53,9 @@ class TestSalesOrder(unittest.TestCase):
                 "address_title": "Test Address",
                 "address_line1": "123 Test St",
                 "city": "Test City",
-                "state": "Test State",
-                "pincode": "123456",
+                "state": "Karnataka",
+                "gst_state": "Karnataka",
+                "pincode": "560001",
                 "country": "India",
                 "address_type": "Billing",
                 "links": [{"link_doctype": "Customer", "link_name": "Test Customer"}]
@@ -71,9 +72,15 @@ class TestSalesOrder(unittest.TestCase):
 
     @patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveAPI")
     def test_on_submit(self, mock_api_class):
+        settings = frappe.get_doc("Printrove Settings")
+        settings.enable_printrove = 1
+        settings.supplier = "Printrove"
+        settings.save(ignore_permissions=True)
+        frappe.db.commit()
+
         mock_api = MagicMock()
         mock_api.get_serviceability.return_value = {"options": [{"price": 50}]}
-        mock_api.create_order.return_value = {"id": "EXT-ORDER-123"}
+        mock_api.create_order.return_value = {"id": "EXT-ORDER-123", "order_cost": 500}
         mock_api_class.return_value = mock_api
 
         so = frappe.new_doc("Sales Order")
@@ -95,4 +102,4 @@ class TestSalesOrder(unittest.TestCase):
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
         self.assertTrue(len(pos) > 0)
         po = frappe.get_doc("Purchase Order", pos[0].parent)
-        self.assertEqual(po.inter_company_order_reference, "EXT-ORDER-123")
+        self.assertEqual(po.printrove_order_id, "EXT-ORDER-123")

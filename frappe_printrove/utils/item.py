@@ -3,7 +3,7 @@ from frappe.utils import get_url
 
 def on_update(doc, method=None):
     # Print File Management
-    if getattr(doc, "is_print_file", False) and not doc.printrove_id:
+    if getattr(doc, "item_group", "") == "Print Files" and not doc.printrove_id:
         # Avoid recursive loop during save
         if frappe.flags.in_printrove_sync:
             return
@@ -35,7 +35,8 @@ def on_update(doc, method=None):
             api = settings.get_api()
             response = api.create_design(image_url, doc.item_name or doc.item_code)
 
-            design_id = response.get("id") if isinstance(response, dict) else response
+            design_id = response.get("design", {}).get("id") if isinstance(response, dict) else None
+            
             if design_id:
                 frappe.flags.in_printrove_sync = True
                 doc.db_set("printrove_id", str(design_id))
