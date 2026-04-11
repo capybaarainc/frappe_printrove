@@ -1,0 +1,93 @@
+[
+  {
+    "dt": "Item",
+    "fieldname": "is_print_file",
+    "fieldtype": "Check",
+    "insert_after": "is_stock_item",
+    "label": "Is Print File",
+    "module": "Frappe Printrove",
+    "name": "Item-is_print_file",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "Item",
+    "fieldname": "printrove_id",
+    "fieldtype": "Data",
+    "insert_after": "item_code",
+    "label": "Printrove ID",
+    "module": "Frappe Printrove",
+    "name": "Item-printrove_id",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM",
+    "fieldname": "printrove_id",
+    "fieldtype": "Data",
+    "insert_after": "item",
+    "label": "Printrove ID",
+    "module": "Frappe Printrove",
+    "name": "BOM-printrove_id",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM Item",
+    "fieldname": "printrove_id",
+    "fieldtype": "Data",
+    "insert_after": "item_code",
+    "label": "Printrove ID",
+    "module": "Frappe Printrove",
+    "name": "BOM Item-printrove_id",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM Item",
+    "fieldname": "print_placement",
+    "fieldtype": "Select",
+    "options": "Front\nBack\nLeft Sleeve\nRight Sleeve\nNeck",
+    "insert_after": "printrove_id",
+    "label": "Print Placement",
+    "module": "Frappe Printrove",
+    "name": "BOM Item-print_placement",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM Item",
+    "fieldname": "print_width",
+    "fieldtype": "Float",
+    "insert_after": "print_placement",
+    "label": "Print Width (inches)",
+    "module": "Frappe Printrove",
+    "name": "BOM Item-print_width",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM Item",
+    "fieldname": "print_height",
+    "fieldtype": "Float",
+    "insert_after": "print_width",
+    "label": "Print Height (inches)",
+    "module": "Frappe Printrove",
+    "name": "BOM Item-print_height",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM Item",
+    "fieldname": "print_left",
+    "fieldtype": "Float",
+    "insert_after": "print_height",
+    "label": "Print Left Offset (inches)",
+    "module": "Frappe Printrove",
+    "name": "BOM Item-print_left",
+    "doctype": "Custom Field"
+  },
+  {
+    "dt": "BOM Item",
+    "fieldname": "print_top",
+    "fieldtype": "Float",
+    "insert_after": "print_left",
+    "label": "Print Top Offset (inches)",
+    "module": "Frappe Printrove",
+    "name": "BOM Item-print_top",
+    "doctype": "Custom Field"
+  }
+]
