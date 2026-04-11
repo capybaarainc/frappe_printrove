@@ -69,6 +69,31 @@ def on_submit(doc, method=None):
         if shipping_address and shipping_address.address_line2:
             order_payload["customer"]["address2"] = shipping_address.address_line2[:50]
 
+        # Create Draft PO
+        po = frappe.new_doc("Purchase Order")
+        po.company = doc.company
+        po.supplier = settings.supplier
+        po.schedule_date = doc.delivery_date
+        
+        for item in printrove_items:
+            # use valuation_rate for draft PO cost
+            rate = frappe.db.get_value("Item", item.item_code, "valuation_rate") or frappe.db.get_value("Item", item.item_code, "standard_rate") or 0
+            po.append(
+                "items",
+                {
+                    "item_code": item.item_code,
+                    "qty": item.qty,
+                    "rate": float(rate),
+                    "schedule_date": doc.delivery_date,
+                    "warehouse": item.warehouse or frappe.get_cached_value("Company", doc.company, "default_warehouse"),
+                    "sales_order": doc.name,
+                    "sales_order_item": item.name,
+                },
+            )
+            
+        po.insert(ignore_permissions=True)
+        order_payload["_draft_po_name"] = po.name
+
         req = create("Sales Order", doc.name, "Create Order", order_payload)
         
         frappe.enqueue(

@@ -127,29 +127,26 @@ def process(integration_request_name):
             pr_order_id = response.get("id") if isinstance(response, dict) else response
             order_cost = response.get("order_cost") if isinstance(response, dict) else 0
 
-            # Create PO
-            po = frappe.new_doc("Purchase Order")
-            po.company = so.company
-            po.supplier = settings.supplier
-            po.schedule_date = so.delivery_date
+            # Update Draft PO
+            draft_po_name = payload.get("_draft_po_name")
+            if not draft_po_name:
+                raise Exception("Draft PO name not found in payload")
+                
+            po = frappe.get_doc("Purchase Order", draft_po_name)
             
             total_item_qty = sum([item.qty for item in printrove_items])
             item_cost_pool = order_cost - shipping_cost if order_cost > shipping_cost else 0
             rate_per_item = item_cost_pool / total_item_qty if total_item_qty > 0 else 0
 
-            for item in printrove_items:
-                po.append(
-                    "items",
-                    {
-                        "item_code": item.item_code,
-                        "qty": item.qty,
-                        "rate": rate_per_item if order_cost else item.rate,
-                        "schedule_date": so.delivery_date,
-                        "warehouse": item.warehouse or frappe.get_cached_value("Company", so.company, "default_warehouse"),
-                        "sales_order": so.name,
-                        "sales_order_item": item.name,
-                    },
-                )
+            # Update item rates based on actual cost
+            if order_cost:
+                po.ignore_pricing_rule = 1
+                for row in po.items:
+                    row.margin_type = ""
+                    row.margin_rate_or_amount = 0.0
+                    row.price_list_rate = rate_per_item
+                    row.rate = rate_per_item
+                    row.amount = row.rate * row.qty
 
             if shipping_cost > 0:
                 shipping_account = settings.shipping_account
@@ -174,7 +171,8 @@ def process(integration_request_name):
                 if pr_order_id:
                     po.printrove_order_id = str(pr_order_id)
 
-                po.insert(ignore_permissions=True)
+                po.save(ignore_permissions=True)
+                po.save(ignore_permissions=True)
                 po.submit()
 
         doc.db_set("status", "Completed")

@@ -169,6 +169,8 @@ class TestSalesOrder(unittest.TestCase):
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent", "item_code", "qty", "rate"])
         
         # Should create a PO with exactly one item (the PR-SUB-1)
+        reqs = frappe.get_all("Integration Request", filters={"reference_docname": so.name}, fields=["status", "error"], order_by="creation desc", limit=1)
+        print(f"Reqs: {reqs}")
         self.assertTrue(len(pos) > 0)
         self.assertEqual(len(pos), 1)
         self.assertEqual(pos[0].item_code, "PR-SUB-1")
@@ -180,6 +182,7 @@ class TestSalesOrder(unittest.TestCase):
 
         po = frappe.get_doc("Purchase Order", pos[0].parent)
         self.assertEqual(po.printrove_order_id, "EXT-ORDER-123")
+        self.assertEqual(po.docstatus, 1)
 
     @patch("frappe_printrove.utils.sales_order.frappe.db.get_all")
     @patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient")
@@ -228,7 +231,10 @@ class TestSalesOrder(unittest.TestCase):
             on_submit(so)
             
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
-        self.assertEqual(len(pos), 0) # PO should not be created
+        self.assertEqual(len(pos), 1) # Draft PO should be created
+
+        po = frappe.get_doc("Purchase Order", pos[0].parent)
+        self.assertEqual(po.docstatus, 0) # Remains in draft mode
 
         # Check Integration Request
         reqs = frappe.get_all("Integration Request", filters={"reference_docname": so.name}, fields=["status", "error"], order_by="creation desc", limit=1)
@@ -284,7 +290,10 @@ class TestSalesOrder(unittest.TestCase):
             on_submit(so)
             
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
-        self.assertEqual(len(pos), 0) # PO should not be created
+        self.assertEqual(len(pos), 1) # Draft PO created
+
+        po = frappe.get_doc("Purchase Order", pos[0].parent)
+        self.assertEqual(po.docstatus, 0) # Remains in draft mode
 
         reqs = frappe.get_all("Integration Request", filters={"reference_docname": so.name}, fields=["status", "error"], order_by="creation desc", limit=1)
         self.assertEqual(reqs[0].status, "Failed")
