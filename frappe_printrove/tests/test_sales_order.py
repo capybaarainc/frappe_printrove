@@ -105,6 +105,7 @@ class TestSalesOrder(unittest.TestCase):
         settings.enable_printrove = 1
         settings.supplier = "Printrove"
         settings.shipping_account = "Freight and Forwarding Charges - _TC"
+        settings.printrove_credit_account = None
         settings.save(ignore_permissions=True)
         frappe.db.commit()
 
@@ -179,3 +180,112 @@ class TestSalesOrder(unittest.TestCase):
 
         po = frappe.get_doc("Purchase Order", pos[0].parent)
         self.assertEqual(po.printrove_order_id, "EXT-ORDER-123")
+
+    @patch("frappe_printrove.utils.sales_order.frappe.db.get_all")
+    @patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient")
+    def test_on_submit_insufficient_credit(self, mock_api_class, mock_get_all):
+        settings = frappe.get_doc("Printrove Settings")
+        settings.enable_printrove = 1
+        settings.supplier = "Printrove"
+        settings.shipping_account = None
+        settings.printrove_credit_account = "Cash - _TC" # Some existing account
+        settings.save(ignore_permissions=True)
+
+        mock_api = MagicMock()
+        mock_api.get_serviceability.return_value = {"options": [{"price": 50}]}
+        mock_api_class.return_value = mock_api
+
+        so = frappe.new_doc("Sales Order")
+        so.company = "_Test Company"
+        so.customer = "Test Customer"
+        so.delivery_date = frappe.utils.add_days(frappe.utils.today(), 5)
+        so.shipping_address_name = "Test Address-Billing"
+        so.append("items", {
+            "item_code": "PR-SUB-1",
+            "qty": 200, # Large qty to trigger insufficient credit
+            "rate": 500,
+            "delivered_by_supplier": 1,
+            "supplier": "Printrove",
+            "warehouse": "Test Warehouse - _TC"
+        })
+        so.insert(ignore_permissions=True, ignore_mandatory=True)
+        so.docstatus = 1
+        
+        # Give item high valuation rate
+        frappe.db.set_value("Item", "PR-SUB-1", "valuation_rate", 1000)
+
+        original_sql = frappe.db.sql
+        def mock_sql(query, *args, **kwargs):
+            if "select sum(actual_qty) from `tabBin` where item_code" in query:
+                return ((0,),)
+            if "SELECT SUM(debit) - SUM(credit)" in query:
+                return ((50,),) # Low balance
+            if "SELECT SUM(grand_total" in query:
+                return ((0,),)
+            return original_sql(query, *args, **kwargs)
+
+        with patch.object(frappe.db, "sql", side_effect=mock_sql):
+            on_submit(so)
+            
+        pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
+        self.assertEqual(len(pos), 0) # PO should not be created
+
+        # Check Integration Request
+        reqs = frappe.get_all("Integration Request", filters={"reference_docname": so.name}, fields=["status", "error"], order_by="creation desc", limit=1)
+        self.assertEqual(reqs[0].status, "Failed")
+        self.assertIn("Insufficient Printrove Credit", reqs[0].error)
+
+    @patch("frappe_printrove.utils.sales_order.frappe.db.get_all")
+    @patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient")
+    def test_on_submit_printrove_api_failure(self, mock_api_class, mock_get_all):
+        import requests
+        settings = frappe.get_doc("Printrove Settings")
+        settings.enable_printrove = 1
+        settings.supplier = "Printrove"
+        settings.shipping_account = None
+        settings.printrove_credit_account = None
+        settings.save(ignore_permissions=True)
+
+        # Mock an HTTP Error 422 from Printrove API
+        mock_api = MagicMock()
+        mock_api.get_serviceability.return_value = {"options": [{"price": 50}]}
+        mock_response = MagicMock()
+        mock_response.status_code = 422
+        mock_response.text = '{"status":"failure","message":"It seems like you do not have sufficient credits to place this order"}'
+        
+        # In Python requests, an HTTPError usually has a response object
+        http_err = requests.exceptions.HTTPError(response=mock_response)
+        mock_api.create_order.side_effect = http_err
+        mock_api_class.return_value = mock_api
+
+        so = frappe.new_doc("Sales Order")
+        so.company = "_Test Company"
+        so.customer = "Test Customer"
+        so.delivery_date = frappe.utils.add_days(frappe.utils.today(), 5)
+        so.shipping_address_name = "Test Address-Billing"
+        so.append("items", {
+            "item_code": "PR-SUB-1",
+            "qty": 2,
+            "rate": 500,
+            "delivered_by_supplier": 1,
+            "supplier": "Printrove",
+            "warehouse": "Test Warehouse - _TC"
+        })
+        so.insert(ignore_permissions=True, ignore_mandatory=True)
+        so.docstatus = 1
+        
+        original_sql = frappe.db.sql
+        def mock_sql(query, *args, **kwargs):
+            if "select sum(actual_qty) from `tabBin` where item_code" in query:
+                return ((0,),)
+            return original_sql(query, *args, **kwargs)
+
+        with patch.object(frappe.db, "sql", side_effect=mock_sql):
+            on_submit(so)
+            
+        pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
+        self.assertEqual(len(pos), 0) # PO should not be created
+
+        reqs = frappe.get_all("Integration Request", filters={"reference_docname": so.name}, fields=["status", "error"], order_by="creation desc", limit=1)
+        self.assertEqual(reqs[0].status, "Failed")
+        self.assertIn("HTTPError", reqs[0].error)

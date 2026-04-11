@@ -95,4 +95,5 @@ class TestItem(unittest.TestCase):
             mock_instance.create_design.return_value = {"design": {"id": "123"}}
             
             on_update(item)
+            item.reload()
             self.assertEqual(item.printrove_id, "123")
