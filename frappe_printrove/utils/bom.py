@@ -19,7 +19,7 @@ def on_submit(doc, method=None):
 
     for item in doc.items:
         # Fetch Item details
-        item_info = frappe.db.get_value("Item", item.item_code, ["printrove_id", "printrove_base_product_id", "item_group"], as_dict=True)
+        item_info = frappe.db.get_value("Item", item.item_code, ["printrove_id", "item_group", "variant_of"], as_dict=True)
         if not item_info or not item_info.printrove_id:
             continue
 
@@ -35,10 +35,13 @@ def on_submit(doc, method=None):
                     "left": int((item.get("print_left") or 0) * 300),
                 },
             }
-        else:
-            # Assume any other item with printrove_id is the blank product (variant)
-            blank_product_id = item_info.printrove_base_product_id
+        elif item_info.item_group == "Sub Assemblies":
+            # The Sub Assembly is the variant item
             blank_variant_id = item_info.printrove_id
+            
+            # Fetch the printrove_id of the template item to use as the base product ID
+            if item_info.variant_of:
+                blank_product_id = frappe.db.get_value("Item", item_info.variant_of, "printrove_id")
 
     if blank_product_id and blank_variant_id and designs:
         try:

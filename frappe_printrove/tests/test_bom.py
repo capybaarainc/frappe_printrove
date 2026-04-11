@@ -20,24 +20,71 @@ class TestBOM(unittest.TestCase):
                 {"doctype": "Item Group", "item_group_name": "Print Files", "is_group": 0}
             ).insert(ignore_permissions=True)
 
-        if not frappe.db.exists("Item", "PR-SUB-1"):
-            item_dict1 = {
+        if not frappe.db.exists("Item Group", "Sub Assemblies"):
+            frappe.get_doc(
+                {"doctype": "Item Group", "item_group_name": "Sub Assemblies", "is_group": 0}
+            ).insert(ignore_permissions=True)
+
+        if not frappe.db.exists("Item Attribute", "Test Size"):
+            frappe.get_doc({
+                "doctype": "Item Attribute",
+                "attribute_name": "Test Size",
+                "item_attribute_values": [{"attribute_value": "M", "abbr": "M"}]
+            }).insert(ignore_permissions=True)
+
+        template_name = "PR-SUB-TEMPLATE"
+        if not frappe.db.exists("Item", template_name):
+            template_dict = {
                 "doctype": "Item",
-                "item_code": "PR-SUB-1",
-                "item_name": "Test Blank Product",
-                "item_group": "All Item Groups",
-                "is_stock_item": 1,
-                "printrove_id": "101",
-                "printrove_base_product_id": "100"
+                "item_code": template_name,
+                "item_name": "Test Template Product",
+                "item_group": "Sub Assemblies",
+                "is_stock_item": 0,
+                "has_variants": 1,
+                "attributes": [{"attribute": "Test Size"}],
+                "printrove_id": "100"
             }
             if frappe.db.has_column("Item", "gst_hsn_code"):
                 if not frappe.db.exists("GST HSN Code", "999900"):
                     frappe.get_doc({"doctype": "GST HSN Code", "name": "999900", "description": "Default HSN"}).insert(ignore_permissions=True)
-                item_dict1["gst_hsn_code"] = "999900"
-            frappe.get_doc(item_dict1).insert(ignore_permissions=True)
+                template_dict["gst_hsn_code"] = "999900"
+            # temporarily bypass naming series if any
+            frappe.db.set_value("Print Settings", "Print Settings", "item_naming_by", "Item Code") 
+            try:
+                doc = frappe.get_doc(template_dict)
+                doc.flags.ignore_mandatory = True
+                doc.flags.ignore_validate = True
+                doc.insert(ignore_permissions=True, set_name=template_name)
+            except frappe.DuplicateEntryError:
+                pass
         else:
-            frappe.db.set_value("Item", "PR-SUB-1", "printrove_id", "101")
-            frappe.db.set_value("Item", "PR-SUB-1", "printrove_base_product_id", "100")
+            frappe.db.set_value("Item", template_name, "printrove_id", "100")
+
+        variant_name = "PR-SUB-1"
+        if not frappe.db.exists("Item", variant_name):
+            item_dict1 = {
+                "doctype": "Item",
+                "item_code": variant_name,
+                "item_name": "Test Blank Product",
+                "item_group": "Sub Assemblies",
+                "is_stock_item": 1,
+                "variant_of": template_name,
+                "printrove_id": "101",
+                "attributes": [{"attribute": "Test Size", "attribute_value": "M"}]
+            }
+            if frappe.db.has_column("Item", "gst_hsn_code"):
+                item_dict1["gst_hsn_code"] = "999900"
+            try:
+                doc = frappe.get_doc(item_dict1)
+                doc.flags.ignore_mandatory = True
+                doc.flags.ignore_validate = True
+                doc.insert(ignore_permissions=True, set_name=variant_name)
+            except frappe.DuplicateEntryError:
+                pass
+        else:
+            frappe.db.set_value("Item", variant_name, "printrove_id", "101")
+            frappe.db.set_value("Item", variant_name, "item_group", "Sub Assemblies")
+            frappe.db.set_value("Item", variant_name, "variant_of", template_name)
 
         if not frappe.db.exists("Item", "Test Print File"):
             item_dict2 = {
