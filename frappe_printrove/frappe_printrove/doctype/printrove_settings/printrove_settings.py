@@ -66,6 +66,11 @@ class PrintroveAPI:
         self.token = self.get_access_token()
 
     def get_access_token(self):
+        cache_key = "printrove_access_token"
+        cached_token = frappe.cache().get_value(cache_key)
+        if cached_token:
+            return cached_token
+
         url = f"{self.base_url}/api/external/token"
         payload = {"email": self.client_id, "password": self.client_secret}
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -74,7 +79,25 @@ class PrintroveAPI:
             response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
-            return data.get("access_token")
+            token = data.get("access_token")
+            expires_at_str = data.get("expires_at")
+
+            if token and expires_at_str:
+                # Parse the ISO format string (e.g. 2027-04-11T12:23:37.000000Z)
+                try:
+                    expires_at = datetime.datetime.strptime(expires_at_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S.%f")
+                except ValueError:
+                    # Fallback if there are no microseconds
+                    expires_at = datetime.datetime.strptime(expires_at_str.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+                
+                now = datetime.datetime.utcnow()
+                ttl = (expires_at - now).total_seconds()
+                ttl_with_buffer = int(ttl - 300) # 5 minutes buffer
+
+                if ttl_with_buffer > 0:
+                    frappe.cache().set_value(cache_key, token, expires_in_sec=ttl_with_buffer)
+
+            return token
         except Exception:
             frappe.log_error(message=frappe.get_traceback(), title="Printrove Authentication Failed")
             frappe.throw(_("Failed to authenticate with Printrove API. Check logs for details."))
@@ -147,13 +170,13 @@ def sync_printrove_catalog():
             if not category_name:
                 continue
 
-            # 2. Create Item Group
-            if not frappe.db.exists("Item Group", category_name):
+            # 2. Create Item Category
+            if not frappe.db.exists("Item Category", category_name):
                 frappe.get_doc(
                     {
-                        "doctype": "Item Group",
-                        "item_group_name": category_name,
-                        "parent_item_group": "All Item Groups",
+                        "doctype": "Item Category",
+                        "item_category_name": category_name,
+                        "parent_item_category": "All Item Categories",
                     }
                 ).insert(ignore_permissions=True)
 
@@ -190,7 +213,7 @@ def sync_printrove_catalog():
                             _create_or_update_item(
                                 item_code=f"PR-{variant_id}",
                                 item_name=variant_name,
-                                item_group=category_name,
+                                item_category=category_name,
                                 printrove_id=variant_id,
                                 valuation_rate=price,
                             )
@@ -199,7 +222,7 @@ def sync_printrove_catalog():
                         _create_or_update_item(
                             item_code=f"PR-{product_id}",
                             item_name=product_name,
-                            item_group=category_name,
+                            item_category=category_name,
                             printrove_id=product_id,
                             valuation_rate=product.get("price", 0.0),
                         )
@@ -216,14 +239,15 @@ def sync_printrove_catalog():
         frappe.db.rollback()
         frappe.log_error(message=frappe.get_traceback(), title="Printrove Catalog Sync Failed")
 
-def _create_or_update_item(item_code, item_name, item_group, printrove_id, valuation_rate):
+def _create_or_update_item(item_code, item_name, item_category, printrove_id, valuation_rate):
     if not frappe.db.exists("Item", item_code):
         item = frappe.get_doc(
             {
                 "doctype": "Item",
                 "item_code": item_code,
                 "item_name": item_name,
-                "item_group": item_group,
+                "item_group": "Products",  # Defaulting item_group as it is usually mandatory in ERPNext
+                "item_category": item_category,
                 "stock_uom": "Nos",
                 "is_stock_item": 1,
                 "is_sub_contracted_item": 0,
@@ -244,6 +268,9 @@ def _create_or_update_item(item_code, item_name, item_group, printrove_id, valua
             updated = True
         if item.item_name != item_name:
             item.item_name = item_name
+            updated = True
+        if hasattr(item, "item_category") and item.item_category != item_category:
+            item.item_category = item_category
             updated = True
         if updated:
             item.save(ignore_permissions=True)
