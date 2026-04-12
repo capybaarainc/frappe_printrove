@@ -235,6 +235,14 @@ class TestSalesOrder(unittest.TestCase):
         with patch.object(frappe.db, "sql", side_effect=mock_sql):
             on_submit(so)
             
+            from frappe_printrove.utils.integration_request import process_order_request
+            req = frappe.get_last_doc("Integration Request", filters={"reference_docname": so.name, "request_description": "Create Order"})
+            if req:
+                try:
+                    process_order_request(req.name)
+                except Exception:
+                    pass
+            
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
         self.assertEqual(len(pos), 1) # Draft PO should be created
 
@@ -293,6 +301,14 @@ class TestSalesOrder(unittest.TestCase):
 
         with patch.object(frappe.db, "sql", side_effect=mock_sql):
             on_submit(so)
+            
+            from frappe_printrove.utils.integration_request import process_order_request
+            req = frappe.get_last_doc("Integration Request", filters={"reference_docname": so.name, "request_description": "Create Order"})
+            if req:
+                try:
+                    process_order_request(req.name)
+                except Exception:
+                    pass
             
         pos = frappe.get_all("Purchase Order Item", filters={"sales_order": so.name}, fields=["parent"])
         self.assertEqual(len(pos), 1) # Draft PO created
