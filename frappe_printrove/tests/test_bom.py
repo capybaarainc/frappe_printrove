@@ -143,3 +143,71 @@ class TestBOM(unittest.TestCase):
             bom.reload()
             self.assertEqual(bom.printrove_id, "var_123")
             self.assertEqual(frappe.db.get_value("Item", "Test Finished Product", "printrove_id"), "var_123")
+
+    def test_asynchronous_bom_product_sync(self):
+        import uuid
+        uid = str(uuid.uuid4())[:8]
+        
+        retro_item_name = f"Retro Print File {uid}"
+        bom_fg_name = f"Test Finished Product 2 {uid}"
+        
+        # Create a print file WITHOUT a printrove_id
+        item_dict_retro = {
+            "doctype": "Item",
+            "item_code": retro_item_name,
+            "item_name": retro_item_name,
+            "item_group": "Print Files",
+            "is_stock_item": 1
+        }
+        if frappe.db.has_column("Item", "gst_hsn_code"):
+            item_dict_retro["gst_hsn_code"] = "999900"
+        frappe.get_doc(item_dict_retro).insert(ignore_permissions=True)
+        
+        # Create BOM with it
+        bom = frappe.new_doc("BOM")
+        bom.item = bom_fg_name
+        if not frappe.db.exists("Item", bom_fg_name):
+            fg2 = frappe.get_doc({"doctype": "Item", "item_code": bom_fg_name, "item_group": "All Item Groups", "is_stock_item": 1})
+            if frappe.db.has_column("Item", "gst_hsn_code"):
+                fg2.gst_hsn_code = "999900"
+            fg2.append("supplier_items", {"supplier": "Printrove Products Private Limited"})
+            fg2.insert()
+            
+        bom.qty = 1
+        bom.custom_bom_code = f"BOM-RETRO-{uid}"
+        bom.append("items", {"item_code": "PR-SUB-1", "qty": 1})
+        bom.append("items", {
+            "item_code": retro_item_name,
+            "qty": 1,
+            "print_placement": "Front",
+            "print_width": 10.0,
+            "print_height": 12.0
+        })
+        bom.insert(ignore_permissions=True)
+        bom.submit() # Submit it, it should NOT sync yet
+
+        self.assertFalse(bom.printrove_id)
+        
+        # Now simulate "Create Design" finishing for the Retro Print File
+        from frappe_printrove.utils.integration_request import create, process
+        
+        req = create("Item", retro_item_name, "Create Design", {"file_url": "/fake.png"})
+        
+        # We need to mock find_file_by_url so it returns a fake file doc
+        with patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.get_access_token") as mock_token, \
+             patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_design") as mock_create_design, \
+             patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_product") as mock_create_product, \
+             patch("frappe.core.doctype.file.utils.find_file_by_url") as mock_find_file:
+             
+            mock_token.return_value = "mock_token"
+            mock_file = MagicMock()
+            mock_file.get_content.return_value = b"fake"
+            mock_find_file.return_value = mock_file
+            
+            mock_create_design.return_value = {"design": {"id": "12345678"}}
+            mock_create_product.return_value = {"product": {"id": "87654321", "variants": [{"id": "11223344"}]}}
+            
+            process(req.name)
+            
+            bom.reload()
+            self.assertEqual(bom.printrove_id, "11223344")
