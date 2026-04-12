@@ -100,10 +100,10 @@ class TestItem(unittest.TestCase):
             
             on_update(item)
             
-            # Since the request is enqueued, we need to process it synchronously for the test
-            from frappe_printrove.utils.integration_request import process
+            # Since the request is queued, we need to process it synchronously for the test
+            from frappe_printrove.utils.integration_request import process_design_request
             req = frappe.get_last_doc("Integration Request", filters={"reference_docname": item.name, "request_description": "Create Design"})
-            process(req.name)
+            process_design_request(req.name)
             
             item.reload()
             self.assertEqual(item.printrove_id, "123")
@@ -146,9 +146,9 @@ class TestItem(unittest.TestCase):
             })
             f_doc.insert(ignore_permissions=True)
             
-            from frappe_printrove.utils.integration_request import process
+            from frappe_printrove.utils.integration_request import process_design_request
             req = frappe.get_last_doc("Integration Request", filters={"reference_docname": item.name, "request_description": "Create Design"})
-            process(req.name)
+            process_design_request(req.name)
             
             # Verify the item now has the printrove_id set!
             item.reload()
