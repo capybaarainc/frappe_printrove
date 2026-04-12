@@ -214,5 +214,11 @@ class TestBOM(unittest.TestCase):
             
             process_design_request(req.name)
             
+            # Now we must process the implicitly queued "Create Product" request
+            from frappe_printrove.utils.integration_request import process_product_request
+            req_product = frappe.get_last_doc("Integration Request", filters={"reference_docname": bom.name, "request_description": "Create Product"})
+            if req_product:
+                process_product_request(req_product.name)
+            
             bom.reload()
             self.assertEqual(bom.printrove_id, "11223344")
