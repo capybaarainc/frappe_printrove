@@ -150,23 +150,11 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"frappe_printrove.tasks.all"
-# 	],
-# 	"daily": [
-# 		"frappe_printrove.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"frappe_printrove.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"frappe_printrove.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"frappe_printrove.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"all": [
+		"frappe_printrove.utils.integration_request.process"
+	]
+}
 
 # Testing
 # -------
