@@ -202,7 +202,7 @@ class TestBOM(unittest.TestCase):
         with patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.get_access_token") as mock_token, \
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_design") as mock_create_design, \
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_product") as mock_create_product, \
-             patch("frappe.core.doctype.file.utils.find_file_by_url") as mock_find_file:
+             patch("frappe_printrove.utils.integration_request.find_file_by_url") as mock_find_file:
              
             mock_token.return_value = "mock_token"
             mock_file = MagicMock()
