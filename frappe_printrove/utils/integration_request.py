@@ -53,6 +53,25 @@ def process(integration_request_name):
                 item = frappe.get_doc("Item", doc.reference_docname)
                 item.db_set("printrove_id", str(design_id))
                 frappe.flags.in_printrove_sync = False
+                
+                # Retroactive hook for BOM
+                # Find submitted BOMs that have this item as a component and don't have a printrove_id
+                boms = frappe.db.sql("""
+                    SELECT DISTINCT parent FROM `tabBOM Item`
+                    WHERE item_code = %s
+                    AND parent IN (
+                        SELECT name FROM `tabBOM` WHERE docstatus = 1 AND (printrove_id IS NULL OR printrove_id = '')
+                    )
+                """, (item.name,), as_dict=True)
+                
+                from frappe_printrove.utils.bom import on_submit as bom_on_submit
+                for bom_row in boms:
+                    bom_doc = frappe.get_doc("BOM", bom_row.parent)
+                    try:
+                        bom_on_submit(bom_doc)
+                    except Exception as e:
+                        print("Error in retroactive BOM sync:", e)
+                        pass # Prevent failure from breaking current process
 
         elif doc.request_description == "Create Product":
             response = api.create_product(payload)
@@ -85,6 +104,23 @@ def process(integration_request_name):
                         "supplier_part_no": str(new_product_id)
                     })
                     item_doc.save(ignore_permissions=True)
+
+                # Retroactive hook for Sales Order
+                sos = frappe.db.sql("""
+                    SELECT DISTINCT parent FROM `tabSales Order Item`
+                    WHERE item_code = %s
+                    AND parent IN (
+                        SELECT name FROM `tabSales Order` WHERE docstatus = 1
+                    )
+                """, (item_doc.name,), as_dict=True)
+                
+                from frappe_printrove.utils.sales_order import on_submit as so_on_submit
+                for so_row in sos:
+                    so_doc = frappe.get_doc("Sales Order", so_row.parent)
+                    try:
+                        so_on_submit(so_doc)
+                    except Exception:
+                        pass
 
         elif doc.request_description == "Create Order":
             # Fetch shipping cost dynamically here
@@ -186,12 +222,12 @@ def process(integration_request_name):
                         }
                     )
 
-                if pr_order_id:
-                    po.printrove_order_id = str(pr_order_id)
+            if pr_order_id:
+                po.printrove_order_id = str(pr_order_id)
 
-                po.save(ignore_permissions=True)
-                po.save(ignore_permissions=True)
-                po.submit()
+            po.save(ignore_permissions=True)
+            po.save(ignore_permissions=True)
+            po.submit()
 
         doc.db_set("status", "Completed")
         frappe.db.commit()
