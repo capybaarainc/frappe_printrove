@@ -138,7 +138,7 @@ def ensure_supplier_item(doc, supplier, part_no):
 def run():
     frappe.logger().info("Starting Printrove Catalog Seed (Upsert)")
     
-    data_path = os.path.join(frappe.get_app_path("frappe_printrove"), "fixtures", "resources.json")
+    data_path = os.path.join(frappe.get_app_path("frappe_printrove"), "data", "resources.json")
     if not os.path.exists(data_path):
         frappe.logger().error(f"Catalog data not found at {data_path}")
         return
