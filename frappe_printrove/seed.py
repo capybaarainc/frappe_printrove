@@ -253,7 +253,11 @@ def run():
             
             if has_variant_attr:
                 for attr in t_data["attributes"]:
-                    doc.append("attributes", {"attribute": attr})
+                    include_in_code = 1 if attr in ["Size", "Colour"] else 0
+                    doc.append("attributes", {
+                        "attribute": attr,
+                        "include_in_item_code": include_in_code
+                    })
             else:
                 # Set price and weight if there's no variant
                 if len(t_data["variants"]) > 0:
@@ -294,11 +298,20 @@ def run():
                 changed = True
                 
             if has_variant_attr:
-                existing_attrs = [row.attribute for row in doc.attributes]
+                existing_attrs = {row.attribute: row for row in doc.attributes}
                 for attr in t_data["attributes"]:
+                    include_in_code = 1 if attr in ["Size", "Colour"] else 0
                     if attr not in existing_attrs:
-                        doc.append("attributes", {"attribute": attr})
+                        doc.append("attributes", {
+                            "attribute": attr,
+                            "include_in_item_code": include_in_code
+                        })
                         changed = True
+                    else:
+                        row = existing_attrs[attr]
+                        if getattr(row, "include_in_item_code", None) != include_in_code:
+                            row.include_in_item_code = include_in_code
+                            changed = True
             else:
                 if len(t_data["variants"]) > 0:
                     first_var = t_data["variants"][0]
