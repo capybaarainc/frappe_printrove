@@ -140,6 +140,11 @@ class TestBOM(unittest.TestCase):
             
             on_submit(bom)
             
+            from frappe_printrove.utils.integration_request import process_product_request
+            req = frappe.get_last_doc("Integration Request", filters={"reference_docname": bom.name, "request_description": "Create Product"})
+            if req:
+                process_product_request(req.name)
+            
             bom.reload()
             self.assertEqual(bom.printrove_id, "var_123")
             self.assertEqual(frappe.db.get_value("Item", "Test Finished Product", "printrove_id"), "var_123")
@@ -189,7 +194,7 @@ class TestBOM(unittest.TestCase):
         self.assertFalse(bom.printrove_id)
         
         # Now simulate "Create Design" finishing for the Retro Print File
-        from frappe_printrove.utils.integration_request import create, process
+        from frappe_printrove.utils.integration_request import create, process_design_request
         
         req = create("Item", retro_item_name, "Create Design", {"file_url": "/fake.png"})
         
@@ -197,7 +202,7 @@ class TestBOM(unittest.TestCase):
         with patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.get_access_token") as mock_token, \
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_design") as mock_create_design, \
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_product") as mock_create_product, \
-             patch("frappe.core.doctype.file.utils.find_file_by_url") as mock_find_file:
+             patch("frappe_printrove.utils.integration_request.find_file_by_url") as mock_find_file:
              
             mock_token.return_value = "mock_token"
             mock_file = MagicMock()
@@ -207,7 +212,13 @@ class TestBOM(unittest.TestCase):
             mock_create_design.return_value = {"design": {"id": "12345678"}}
             mock_create_product.return_value = {"product": {"id": "87654321", "variants": [{"id": "11223344"}]}}
             
-            process(req.name)
+            process_design_request(req.name)
+            
+            # Now we must process the implicitly queued "Create Product" request
+            from frappe_printrove.utils.integration_request import process_product_request
+            req_product = frappe.get_last_doc("Integration Request", filters={"reference_docname": bom.name, "request_description": "Create Product"})
+            if req_product:
+                process_product_request(req_product.name)
             
             bom.reload()
             self.assertEqual(bom.printrove_id, "11223344")

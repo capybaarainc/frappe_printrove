@@ -17,7 +17,7 @@ class TestIntegrationRequestFunctions(unittest.TestCase):
         settings.supplier = "Printrove Products Private Limited"
         settings.save(ignore_permissions=True)
 
-    @patch("frappe.core.doctype.file.utils.find_file_by_url")
+    @patch("frappe_printrove.utils.integration_request.find_file_by_url")
     def test_create_design(self, mock_find_file):
         mock_api = MagicMock()
         mock_api.create_design.return_value = {"design": {"id": "design_123"}}

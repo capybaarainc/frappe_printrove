@@ -150,7 +150,7 @@ class TestUtils(unittest.TestCase):
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_design") as mock_create_design, \
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_product") as mock_create_product, \
              patch("frappe_printrove.frappe_printrove.doctype.printrove_settings.printrove_settings.PrintroveClient.create_order") as mock_create_order, \
-             patch("frappe.core.doctype.file.utils.find_file_by_url") as mock_find_file:
+             patch("frappe_printrove.utils.integration_request.find_file_by_url") as mock_find_file:
              
             mock_token.return_value = "mock_token"
             
@@ -174,10 +174,10 @@ class TestUtils(unittest.TestCase):
             })
             f_doc.insert(ignore_permissions=True)
             
-            from frappe_printrove.utils.integration_request import process
+            from frappe_printrove.utils.integration_request import process_design_request, process_product_request, process_order_request
             req_design = frappe.get_last_doc("Integration Request", filters={"reference_docname": pf_item, "request_description": "Create Design"})
             if req_design.status != "Completed":
-                process(req_design.name)
+                process_design_request(req_design.name)
                 
             # Verify the item now has the printrove_id set!
             pf_doc.reload()
@@ -190,7 +190,7 @@ class TestUtils(unittest.TestCase):
                 pass
             print("PRODUCT REQ STATUS:", req_product.status if req_product else "NOT FOUND")
             if req_product and req_product.status != "Completed":
-                process(req_product.name)
+                process_product_request(req_product.name)
                 
             req_order = None
             try:
@@ -199,7 +199,7 @@ class TestUtils(unittest.TestCase):
                 pass
             print("ORDER REQ STATUS:", req_order.status if req_order else "NOT FOUND")
             if req_order and req_order.status != "Completed":
-                process(req_order.name)
+                process_order_request(req_order.name)
             self.assertEqual(pf_doc.printrove_id, "123456")
             
             bom.reload()
