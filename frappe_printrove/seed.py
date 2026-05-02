@@ -169,7 +169,7 @@ def run():
             if not filtered_variants:
                 continue
                 
-            template_attrs = set()
+            template_attrs = {}
             for variant in filtered_variants:
                 for attr_key in ATTRIBUTES_TO_EXTRACT:
                     val = variant.get(attr_key)
@@ -180,14 +180,14 @@ def run():
                         if attr_name == "Size" and val in SIZE_MAPPING:
                             val = SIZE_MAPPING[val]
                             
-                        template_attrs.add(attr_name)
+                        template_attrs[attr_name] = ""
                         if attr_name not in attributes:
                             attributes[attr_name] = set()
                         attributes[attr_name].add(str(val))
                         
             static_attrs = TEMPLATE_STATIC_ATTRIBUTES.get(prod_name, {})
             for static_attr_name, static_attr_val in static_attrs.items():
-                template_attrs.add(static_attr_name)
+                template_attrs[static_attr_name] = str(static_attr_val)
                 if static_attr_name not in attributes:
                     attributes[static_attr_name] = set()
                 attributes[static_attr_name].add(str(static_attr_val))
@@ -196,7 +196,7 @@ def run():
                 "template_name": prod_name,
                 "template_id": prod_id,
                 "item_group": "Sub Assemblies",
-                "attributes": list(template_attrs),
+                "attributes": template_attrs,
                 "variants": filtered_variants
             })
 
@@ -252,10 +252,11 @@ def run():
                 doc.gst_hsn_code = "61091000"
             
             if has_variant_attr:
-                for attr in t_data["attributes"]:
+                for attr, val in t_data["attributes"].items():
                     include_in_code = 1 if attr in ["Size", "Colour"] else 0
                     doc.append("attributes", {
                         "attribute": attr,
+                        "attribute_value": val,
                         "include_in_item_code": include_in_code
                     })
             else:
@@ -299,18 +300,25 @@ def run():
                 
             if has_variant_attr:
                 existing_attrs = {row.attribute: row for row in doc.attributes}
-                for attr in t_data["attributes"]:
+                for attr, val in t_data["attributes"].items():
                     include_in_code = 1 if attr in ["Size", "Colour"] else 0
                     if attr not in existing_attrs:
                         doc.append("attributes", {
                             "attribute": attr,
+                            "attribute_value": val,
                             "include_in_item_code": include_in_code
                         })
                         changed = True
                     else:
                         row = existing_attrs[attr]
+                        row_changed = False
                         if getattr(row, "include_in_item_code", None) != include_in_code:
                             row.include_in_item_code = include_in_code
+                            row_changed = True
+                        if getattr(row, "attribute_value", None) != val:
+                            row.attribute_value = val
+                            row_changed = True
+                        if row_changed:
                             changed = True
             else:
                 if len(t_data["variants"]) > 0:
