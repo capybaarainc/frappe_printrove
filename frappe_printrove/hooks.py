@@ -86,7 +86,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "frappe_printrove.install.before_install"
-after_migrate = ["frappe_printrove.setup.create_integrations_tab", "frappe_printrove.seed.run"]
+after_migrate = ["frappe_printrove.setup.create_integrations_tab"]
 # after_install = "frappe_printrove.install.after_install"
 
 # Uninstallation

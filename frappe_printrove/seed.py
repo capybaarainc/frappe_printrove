@@ -273,74 +273,6 @@ def run():
             doc.insert(ignore_permissions=True)
             existing_item = doc.name
             frappe.logger().info(f"Created Item/Template: {existing_item}")
-        else:
-            # Upsert template/item
-            doc = frappe.get_doc("Item", existing_item)
-            changed = False
-            
-            if doc.item_group != t_data["item_group"]:
-                doc.item_group = t_data["item_group"]
-                changed = True
-
-            if not doc.delivered_by_supplier:
-                doc.delivered_by_supplier = 1
-                changed = True
-
-            if doc.printrove_id != main_printrove_id:
-                doc.printrove_id = main_printrove_id
-                changed = True
-
-            if doc.get("printrove_base_product_id") != str(t_data["template_id"]):
-                doc.printrove_base_product_id = str(t_data["template_id"])
-                changed = True
-
-            if has_variant_attr and not doc.has_variants:
-                doc.has_variants = 1
-                changed = True
-                
-            if has_variant_attr:
-                existing_attrs = {row.attribute: row for row in doc.attributes}
-                for attr, val in t_data["attributes"].items():
-                    include_in_code = 1 if attr in ["Size", "Colour"] else 0
-                    if attr not in existing_attrs:
-                        doc.append("attributes", {
-                            "attribute": attr,
-                            "attribute_value": val,
-                            "include_in_item_code": include_in_code
-                        })
-                        changed = True
-                    else:
-                        row = existing_attrs[attr]
-                        row_changed = False
-                        if getattr(row, "include_in_item_code", None) != include_in_code:
-                            row.include_in_item_code = include_in_code
-                            row_changed = True
-                        if getattr(row, "attribute_value", None) != val:
-                            row.attribute_value = val
-                            row_changed = True
-                        if row_changed:
-                            changed = True
-            else:
-                if len(t_data["variants"]) > 0:
-                    first_var = t_data["variants"][0]
-                    val_rate = first_var.get("base_price", 0)
-                    if doc.valuation_rate != val_rate:
-                        doc.valuation_rate = val_rate
-                        changed = True
-                        
-                    if first_var.get("weight"):
-                        weight = first_var.get("weight") / 1000.0
-                        if doc.weight_per_unit != weight:
-                            doc.weight_per_unit = weight
-                            doc.weight_uom = "Kg"
-                            changed = True
-                            
-            if ensure_supplier_item(doc, "Printrove Products Private Limited", main_printrove_id):
-                changed = True
-                
-            if changed:
-                doc.save(ignore_permissions=True)
-                frappe.logger().info(f"Updated Item/Template: {existing_item}")
                 
         frappe.db.commit()
 
@@ -380,6 +312,10 @@ def run():
             if not existing_variant:
                 try:
                     var_doc = create_variant(existing_item, variant_attributes)
+                    
+                    if frappe.db.exists("Item", var_doc.item_code):
+                        continue
+                        
                     var_doc.item_name = variant_item_name
                     var_doc.printrove_id = str(var_id)
                     var_doc.delivered_by_supplier = 1
@@ -394,59 +330,6 @@ def run():
                     frappe.db.commit()
                 except Exception as e:
                     frappe.logger().error(f"Failed to create variant {var_id}: {e}")
-                    frappe.db.rollback()
-            else:
-                try:
-                    var_doc = frappe.get_doc("Item", existing_variant)
-                    changed = False
-                    
-                    if var_doc.item_name != variant_item_name:
-                        var_doc.item_name = variant_item_name
-                        changed = True
-
-                    if not var_doc.delivered_by_supplier:
-                        var_doc.delivered_by_supplier = 1
-                        changed = True
-
-                    if var_doc.printrove_id != str(var_id):
-                        var_doc.printrove_id = str(var_id)
-                        changed = True
-                        
-                    val_rate = variant.get("base_price", 0)
-                    if var_doc.valuation_rate != val_rate:
-                        var_doc.valuation_rate = val_rate
-                        changed = True
-                        
-                    if variant.get("weight"):
-                        weight = variant.get("weight") / 1000.0
-                        if var_doc.weight_per_unit != weight:
-                            var_doc.weight_per_unit = weight
-                            var_doc.weight_uom = "Kg"
-                            changed = True
-                            
-                    if ensure_supplier_item(var_doc, "Printrove Products Private Limited", str(var_id)):
-                        changed = True
-                        
-                    existing_var_attrs = {}
-                    for row in var_doc.attributes:
-                        existing_var_attrs[row.attribute] = row
-
-                    for attr_name, attr_val in variant_attributes.items():
-                        if attr_name not in existing_var_attrs:
-                            var_doc.append("attributes", {
-                                "attribute": attr_name,
-                                "attribute_value": attr_val
-                            })
-                            changed = True
-                        elif existing_var_attrs[attr_name].attribute_value != attr_val:
-                            existing_var_attrs[attr_name].attribute_value = attr_val
-                            changed = True
-
-                    if changed:
-                        var_doc.save(ignore_permissions=True)
-                        frappe.db.commit()
-                except Exception as e:
-                    frappe.logger().error(f"Failed to update variant {var_id}: {e}")
                     frappe.db.rollback()
                     
     frappe.logger().info("Finished Printrove Catalog Seed")
